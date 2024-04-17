@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chord progression synthesizer</title>
+
+  <link rel="shortcut icon" href="favicon.ico">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap-reboot.min.css" />
+
+  <style>
+    body {
+      background-color: aliceblue;
+      color: royalblue;
+    }
+
+    main {
+      display: grid;
+      gap: 32px;
+      width: 648px;
+      margin-inline: auto;
+      margin-block: 2rem;
+    }
+
+    main h1 {
+      text-align: center;
+    }
+
+    main form {
+      display: contents;
+    }
+  </style>
+
+  <script>
+    // 1  2  3  4  5  6  7  8  9 10 11 12  
+    const NOTE_MAP = {
+      0: 'B',
+      1: 'C',
+      3: 'D',
+      5: 'E',
+      6: 'F',
+      8: 'G',
+      10: 'A',
+      12: 'B'
+    }
+    const CONSONANT_INTERVALS = [0, 3, 4, 5, 7, 9, 10]
+    const DECENT_INTERVALS = [2, 11]
+    const cmajor = [13, 25, 29, 32]
+    const fmajor = [6, 25, 30, 34]
+    const gmajor = [8, 27, 32, 36]
+
+    function generateChord1() {
+      let chord = [0, 0, 0, 0]
+      chord[0] = Math.floor(Math.random() * 12) + 6
+      chord[1] = Math.floor(Math.random() * 12) + 18
+      chord[2] = Math.floor(Math.random() * 12) + 25
+      chord[3] = Math.floor(Math.random() * 12) + 30
+      return chord.toSorted((a, b) => a - b)
+    }
+
+    function generateProgression1() {
+      return [cmajor.slice(), fmajor.slice(), gmajor.slice(), cmajor.slice()]
+    }
+
+    function generateProgression2() {
+      return [cmajor.slice(), generateChord1(), generateChord1(), generateChord1(), cmajor.slice()]
+    }
+
+    function generateProgression3() {
+      return [[13, 25, 29, 32], [17, 29, 29, 32], [12, 18, 25, 41], [13, 25, 29, 32]]
+      // return [
+      //   [13, 25, 29, 32],
+      //   [15, 27, 33, 36],
+      //   [8, 25, 34, 39],
+      //   [13, 25, 29, 32]
+      // ]
+    }
+
+    function checkIntervalSize(prog) {
+      let score = 0
+
+      for (let i = 1; i < prog.length; i++) {
+        const prev = prog[i - 1]
+        const chord = prog[i]
+        for (let j = 0; j < chord.length; j++) {
+          let THRESHOLD = 0
+          if (j === 0) {
+            // bass note
+            THRESHOLD = 10
+          } else {
+            // other notes
+            THRESHOLD = 5
+          }
+          if (Math.abs(chord[j] - prev[j]) > THRESHOLD) {
+            score += Math.abs(chord[j] - prev[j])
+          }
+          if (Math.abs(chord[j] - prog[0][j]) > THRESHOLD) {
+            score += Math.abs(chord[j] - prog[0][j])
+          }
+        }
+      }
+
+      return score
+    }
+
+    function checkIntervalCrossing(prog) {
+      let score = 0
+
+      for (let i = 1; i < prog.length; i++) {
+        const prev = prog[i - 1]
+        const chord = prog[i]
+        for (let j = 1; j < chord.length; j++) {
+          if (chord[j] < prev[j - 1] || chord[j - 1] > prev[j]) {
+            score += 10
+          }
+        }
+      }
+
+      return score
+    }
+
+
+    function checkChordHarmony(prog) {
+      let score = 0
+
+      for (let i = 1; i < prog.length; i++) {
+        const chord = prog[i]
+        let unisonCount = 0
+        for (let j = 1; j < chord.length; j++) {
+          const intervalToBase = (chord[j] - chord[0]) % 12
+          if (intervalToBase === 6) {
+            score += 20
+          } else if (!CONSONANT_INTERVALS.includes(intervalToBase)) {
+            score += 5
+          }
+          if (intervalToBase === 0) {
+            unisonCount++
+          }
+
+          if (chord[j] - chord[j - 1] == 1) {
+            score += 10
+          }
+        }
+        if (unisonCount > 1) {
+          score += 10
+        }
+      }
+
+      return score
+    }
+
+    function checkKeyHarmony(prog) {
+      let score = 0
+
+      const key = prog[0][0]
+      for (let i = 1; i < prog.length; i++) {
+        const chord = prog[i]
+        for (let j = 1; j < chord.length; j++) {
+          const intervalToKey = (chord[j] - key) % 12
+          if (!CONSONANT_INTERVALS.includes(intervalToKey)) {
+            score += 2
+
+            if (!DECENT_INTERVALS.includes(intervalToKey)) {
+              score += 4
+            }
+
+            if (intervalToKey === 6) {
+              score += 4
+            }
+          }
+        }
+      }
+
+      return score
+    }
+
+    function findProgressionBracket(progression) {
+      let lowest = Infinity
+      let highest = -Infinity
+
+      for (const chord of progression) {
+        for (const note of chord) {
+          if (note < lowest) {
+            lowest = note
+          }
+          if (note > highest) {
+            highest = note
+          }
+        }
+      }
+      return [lowest, highest]
+    }
+
+    function analyzeProgression(prog) {
+      const scores = [
+        ['interval size', checkIntervalSize(prog)],
+        ['interval crossing', checkIntervalCrossing(prog)],
+        ['chord harmony', checkChordHarmony(prog)],
+        ['key harmony', checkKeyHarmony(prog)]
+      ]
+
+      const totalScore = scores.reduce((cumm, [_, score]) => cumm + score, 0)
+
+      if (totalScore > 10) {
+        return false
+      }
+
+      return scores
+    }
+
+    function renderAnalysis(e, scores) {
+      const form = e.target
+      const analysis = form['analysis']
+      analysis.replaceChildren()
+
+      for (const [label, score] of scores) {
+        const line = document.createElement('p')
+        line.textContent = `${label}: ${score}`
+        analysis.appendChild(line)
+      }
+
+      const totalScore = scores.reduce((cumm, [_, score]) => cumm + score, 0)
+      const line = document.createElement('p')
+      line.textContent = `Total score: ${totalScore}`
+      analysis.appendChild(line)
+    }
+
+    function renderProgression(e, prog) {
+      const form = e.target
+      const chart = form['chart']
+      chart.replaceChildren()
+
+      const [lowest, highest] = findProgressionBracket(prog)
+      const range = highest - lowest
+
+      chart.style = `
+        display: grid;
+        grid-template-columns: repeat(${range + 1}, 1fr);
+      `
+
+      for (let j = -1; j < prog.length; j++) {
+        for (let i = lowest; i <= highest; i++) {
+          const note = document.createElement('div')
+
+          if (j === -1) {
+            note.style = `
+              font-weight: bold;
+              text-align: center;
+            `
+            note.textContent = NOTE_MAP[((i + 11) % 12) + 1]
+          } else {
+            note.style = `
+              border: 1px solid lightgray;
+              text-align: center;
+            `
+            if (prog[j].includes(i)) {
+              note.textContent = i.toString()
+            }
+          }
+          chart.appendChild(note)
+        }
+      }
+    }
+
+    function renderGenerationInfo(e, data) {
+      const form = e.target
+      const chart = form['metadata']
+      chart.replaceChildren()
+
+      chart.innerText = JSON.stringify(data)
+    }
+
+    function generate(e) {
+      e.preventDefault()
+
+      let iterCount = 0
+      // const progression = generateProgression1()
+      // const progression = generateProgression3()
+      // analyzeProgression(e, progression)
+
+      // let progression = generateProgression2()
+      // while (!analyzeProgression(e, progression) && iterCount < 1000) {
+      //   iterCount++
+      //   progression = generateProgression2()
+      // }
+
+      let progression = [cmajor.slice()]
+      const progSize = 5
+      while (progression.length < progSize) {
+        if (progression.length === progSize - 1) {
+          progression.push(cmajor.slice())
+
+          if (!analyzeProgression(progression)) {
+            progression.pop()
+            progression.pop()
+          }
+          continue
+        }
+        progression.push(generateChord1())
+        while (!(analyzeProgression(progression)) && iterCount < 1000) {
+          progression.pop()
+          progression.push(generateChord1())
+          iterCount++
+        }
+      }
+      const result = analyzeProgression(progression)
+
+      result && renderAnalysis(e, result)
+      renderProgression(e, progression)
+      renderGenerationInfo(e, { iterCount, progression })
+
+    }
+
+    function setup() {
+      const form = document.getElementById('chord-gen')
+      form.onsubmit = generate
+    }
+
+    window.onload = setup
+  </script>
+</head>
+
+<body>
+  <main>
+    <h1>Chord progression synthesizer</h1>
+
+    <form id="chord-gen">
+      <button>generate</button>
+
+      <output name="chart">
+
+      </output>
+
+      <output name="analysis">total score: 0</output>
+
+      <p style="font-size: small;font-style: italic;">Lower score is better</p>
+
+      <output name="metadata"></output>
+    </form>
+  </main>
+</body>
+
+</html>
